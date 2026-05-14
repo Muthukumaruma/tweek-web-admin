@@ -11,18 +11,33 @@ export default function TrainingPage({ auth }) {
   const [resumeName, setResumeName] = useState('');
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
 
   const headers = { Authorization: `Bearer ${auth.token}` };
 
   useEffect(() => {
-    axios.get(`${auth.apiBase}/api/training`, { headers }).then(({ data }) => {
-      setRole(data.role || '');
-      setSkills((data.skills || []).join(', '));
-      setExperience(data.experience || '');
-      setSystemPrompt(data.systemPrompt || '');
-      setFiles(data.customFiles || []);
-      if (data.resume) setResumeName(`Saved (${data.resume.length} chars)`);
-    });
+    setLoading(true);
+    setFetchError('');
+    axios.get(`${auth.apiBase}/api/training`, { headers })
+      .then(({ data }) => {
+        setRole(data.role || '');
+        setSkills((data.skills || []).join(', '));
+        setExperience(data.experience || '');
+        setSystemPrompt(data.systemPrompt || '');
+        setFiles(data.customFiles || []);
+        if (data.resume) setResumeName(`Saved (${data.resume.length} chars)`);
+      })
+      .catch((err) => {
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          setFetchError('Session expired — please log out and log back in.');
+        } else if (!err.response) {
+          setFetchError('Cannot reach backend. Make sure the server is running on port 4000.');
+        } else {
+          setFetchError(err.response?.data?.error || err.message);
+        }
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const save = async () => {
@@ -61,9 +76,13 @@ export default function TrainingPage({ auth }) {
     if (!file) return;
     const fd = new FormData();
     fd.append('file', file);
-    await axios.post(`${auth.apiBase}/api/training/file`, fd, { headers });
-    setFiles((p) => [...p, { name: file.name, uploadedAt: new Date() }]);
-    setStatus(`✓ ${file.name} uploaded`);
+    try {
+      await axios.post(`${auth.apiBase}/api/training/file`, fd, { headers });
+      setFiles((p) => [...p, { name: file.name, uploadedAt: new Date() }]);
+      setStatus(`✓ ${file.name} uploaded`);
+    } catch (err) {
+      setStatus(`✗ ${err.response?.data?.error || err.message}`);
+    }
     setTimeout(() => setStatus(''), 3000);
     e.target.value = '';
   };
@@ -82,6 +101,13 @@ export default function TrainingPage({ auth }) {
       <main style={s.main}>
         <h1 style={s.heading}>Train My Model</h1>
         <p style={s.sub}>Upload your resume and context so the AI answers in your voice and style.</p>
+
+        {loading && (
+          <div style={s.loadingBar}>⏳ Loading your training context...</div>
+        )}
+        {fetchError && (
+          <div style={s.errorBar}>⚠ {fetchError}</div>
+        )}
 
         <div style={s.grid}>
           <div style={s.card}>
@@ -186,4 +212,6 @@ const s = {
   footer: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 16, marginTop: 24 },
   statusMsg: { color: '#34d399', fontSize: 14 },
   saveBtn: { padding: '12px 28px', background: '#7c3aed', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14 },
+  loadingBar: { background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 8, padding: '10px 16px', color: '#a78bfa', fontSize: 13, marginBottom: 16 },
+  errorBar: { background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, padding: '10px 16px', color: '#f87171', fontSize: 13, marginBottom: 16 },
 };
