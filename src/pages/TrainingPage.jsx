@@ -4,7 +4,8 @@ import axios from 'axios';
 
 export default function TrainingPage({ auth }) {
   const [role, setRole] = useState('');
-  const [skills, setSkills] = useState('');
+  const [skills, setSkills] = useState([]); // array of strings
+  const [skillInput, setSkillInput] = useState('');
   const [experience, setExperience] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
   const [files, setFiles] = useState([]);
@@ -22,7 +23,7 @@ export default function TrainingPage({ auth }) {
     axios.get(`${auth.apiBase}/api/training`, { headers })
       .then(({ data }) => {
         setRole(data.role || '');
-        setSkills((data.skills || []).join(', '));
+        setSkills(data.skills || []);
         setExperience(data.experience || '');
         setSystemPrompt(data.systemPrompt || '');
         setFiles(data.customFiles || []);
@@ -45,7 +46,7 @@ export default function TrainingPage({ auth }) {
     try {
       await axios.post(
         `${auth.apiBase}/api/training/context`,
-        { role, skills: skills.split(',').map((s) => s.trim()).filter(Boolean), experience, systemPrompt },
+        { role, skills, experience, systemPrompt },
         { headers }
       );
       setStatus('✓ Saved successfully');
@@ -126,8 +127,39 @@ export default function TrainingPage({ auth }) {
 
           <div style={s.card}>
             <h3 style={s.cardTitle}>Skills</h3>
-            <textarea style={s.textarea} rows={3} placeholder="React, TypeScript, Node.js, Python..."
-              value={skills} onChange={(e) => setSkills(e.target.value)} />
+            <p style={s.hint}>Type a skill and press Enter or comma to add it.</p>
+            <div style={s.chipWrap}>
+              {skills.map((sk, i) => (
+                <span key={i} style={s.chip}>
+                  {sk}
+                  <button style={s.chipX} onClick={() => setSkills(skills.filter((_, j) => j !== i))}>×</button>
+                </span>
+              ))}
+              <input
+                style={s.chipInput}
+                placeholder="Add skill..."
+                value={skillInput}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val.endsWith(',')) {
+                    const sk = val.slice(0, -1).trim();
+                    if (sk) setSkills([...skills, sk]);
+                    setSkillInput('');
+                  } else {
+                    setSkillInput(val);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && skillInput.trim()) {
+                    setSkills([...skills, skillInput.trim()]);
+                    setSkillInput('');
+                  }
+                  if (e.key === 'Backspace' && !skillInput && skills.length > 0) {
+                    setSkills(skills.slice(0, -1));
+                  }
+                }}
+              />
+            </div>
           </div>
 
           <div style={s.card}>
@@ -205,6 +237,10 @@ const s = {
   roleExamples: { display: 'flex', flexWrap: 'wrap', gap: 6 },
   roleChip: { padding: '4px 10px', borderRadius: 20, border: '1px solid', color: '#e2e8f0', fontSize: 12, cursor: 'pointer' },
   textarea: { width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#e2e8f0', fontSize: 13, resize: 'vertical', outline: 'none', lineHeight: 1.6 },
+  chipWrap: { display: 'flex', flexWrap: 'wrap', gap: 6, padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, minHeight: 44, alignItems: 'center' },
+  chip: { display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.4)', borderRadius: 20, padding: '3px 10px', color: '#c4b5fd', fontSize: 12, fontWeight: 600 },
+  chipX: { background: 'none', border: 'none', color: '#7c3aed', cursor: 'pointer', fontSize: 14, padding: 0, lineHeight: 1, fontWeight: 700 },
+  chipInput: { flex: 1, minWidth: 100, background: 'none', border: 'none', outline: 'none', color: '#e2e8f0', fontSize: 13, padding: '2px 4px' },
   resumeStatus: { background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.3)', borderRadius: 6, padding: '6px 10px', color: '#34d399', fontSize: 12, marginBottom: 8 },
   uploadLabel: { display: 'block', background: 'rgba(124,58,237,0.1)', border: '1px dashed rgba(124,58,237,0.5)', borderRadius: 8, padding: 14, textAlign: 'center', color: '#a78bfa', cursor: 'pointer', marginBottom: 10 },
   fileList: { display: 'flex', flexDirection: 'column', gap: 4 },
